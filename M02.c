@@ -7,15 +7,55 @@ int pc = 0; // Program Counter
 uint8_t SREG = 0b00000000; // 8-bit status register
 
 
-// Simulated Register File (8-bit addressing → 64 registers)
-int reg[64] = {0};
+int reg[64] = {0}; // Simulated Register File (8-bit addressing -->  64 registers)
 
-// Simulated Data Memory
-int data_memory[2048] = {0};
 
-// Simulated Instruction Memory
-int instructionMemory[1024] = {0};
+int data_memory[2048] = {0}; // Simulated Data Memory
+
+
+int instructionMemory[1024] = {0}; // Simulated Instruction Memory
 int NumberOfInstructions = sizeof(instructionMemory) / sizeof(int);
+
+void update_flags(int result, int val1, int val2, char operation) {
+    // Clear bits 0–4 of SREG (keep bits 5–7 at 0)
+    SREG = SREG & 0b11100000;
+
+    // ----- Zero Flag (Z, bit 0) -----
+    if (result == 0)
+        SREG = SREG | (1 << 0); // Set bit 0 to 1
+
+    // ----- Negative Flag (N, bit 2) -----
+    if (result < 0)
+        SREG = SREG | (1 << 2); // Set bit 2 to 1
+
+    // ----- Carry Flag (C, bit 4) -----
+    unsigned int ures = (unsigned int)val1 + (unsigned int)val2;
+    if (operation == '+' && ((ures >> 8) & 1) == 1)
+        SREG = SREG | (1 << 4); // Set bit 4 to 1
+    else if (operation == '-' && ((unsigned int)val1 < (unsigned int)val2))
+        SREG = SREG | (1 << 4); // Set bit 4 to 1 (borrow)
+
+    // ----- Overflow Flag (V, bit 3) -----
+    int sign1 = (val1 >> 31) & 1;
+    int sign2 = (val2 >> 31) & 1;
+    int signr = (result >> 31) & 1;
+
+    if (operation == '+') {
+        if (sign1 == sign2 && signr != sign1)
+            SREG = SREG | (1 << 3); // Set bit 3 to 1 (overflow)
+    } else if (operation == '-') {
+        if (sign1 != sign2 && signr == sign2)
+            SREG = SREG | (1 << 3); // Set bit 3 to 1 (overflow)
+    }
+
+    // ----- Sign Flag (S, bit 1) -----
+    int N = (SREG >> 2) & 1;
+    int V = (SREG >> 3) & 1;
+    if ((N ^ V) == 1)
+        SREG = SREG | (1 << 1); // Set bit 1 to 1
+}
+
+
 
 // Execute the instruction based on opcode and fields
 void instruction_execute(int opcode, int r1, int r2, int immediate) {
