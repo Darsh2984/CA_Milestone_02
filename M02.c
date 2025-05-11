@@ -74,7 +74,6 @@ void instruction_execute(int opcode, int r1, int r2, int immediate) {
             break;
         case 2: // MUL
             reg[r1] = reg[r1] * reg[r2];
-
             // Manually update relevant flags (Z, N, S)
             SREG = SREG & 0b11100000; // Clear bits 0–4
             if (reg[r1] == 0)
