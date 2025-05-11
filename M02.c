@@ -17,43 +17,47 @@ int instructionMemory[1024] = {0}; // Simulated Instruction Memory
 int NumberOfInstructions = sizeof(instructionMemory) / sizeof(int);
 
 void update_flags(int result, int val1, int val2, char operation) {
-    // Clear bits 0–4 of SREG (keep bits 5–7 at 0)
-    SREG = SREG & 0b11100000;
+    // Clear bits 0–4 (Z, S, N, V, C) — keep bits 5–7 at 0
+        SREG = SREG & 0b11100000;
 
     // ----- Zero Flag (Z, bit 0) -----
     if (result == 0)
-        SREG = SREG | (1 << 0); // Set bit 0 to 1
+        SREG = SREG | (1 << 0); // Set Z if result is zero
 
     // ----- Negative Flag (N, bit 2) -----
     if (result < 0)
-        SREG = SREG | (1 << 2); // Set bit 2 to 1
+        SREG = SREG | (1 << 2); // Set N if result is negative
 
     // ----- Carry Flag (C, bit 4) -----
-    unsigned int ures = (unsigned int)val1 + (unsigned int)val2;
-    if (operation == '+' && ((ures >> 8) & 1) == 1)
-        SREG = SREG | (1 << 4); // Set bit 4 to 1
-    else if (operation == '-' && ((unsigned int)val1 < (unsigned int)val2))
-        SREG = SREG | (1 << 4); // Set bit 4 to 1 (borrow)
-
-    // ----- Overflow Flag (V, bit 3) -----
-    int sign1 = (val1 >> 31) & 1;
-    int sign2 = (val2 >> 31) & 1;
-    int signr = (result >> 31) & 1;
-
     if (operation == '+') {
-        if (sign1 == sign2 && signr != sign1)
-            SREG = SREG | (1 << 3); // Set bit 3 to 1 (overflow)
+        unsigned int ures = (unsigned int)val1 + (unsigned int)val2;
+        if ((ures >> 8) & 1) // check 9th bit (carry out)
+            SREG = SREG | (1 << 4); // Set Carry
     } else if (operation == '-') {
-        if (sign1 != sign2 && signr == sign2)
-            SREG = SREG | (1 << 3); // Set bit 3 to 1 (overflow)
+        if ((unsigned int)val1 < (unsigned int)val2) // borrow occurred
+            SREG = SREG | (1 << 4); // Set Carry
     }
 
-    // ----- Sign Flag (S, bit 1) -----
+    // ----- Overflow Flag (V, bit 3) -----
+    if (operation == '+' || operation == '-') {
+        int sign1 = (val1 >> 31) & 1;
+        int sign2 = (val2 >> 31) & 1;
+        int signr = (result >> 31) & 1;
+
+        if (operation == '+' && sign1 == sign2 && signr != sign1)
+            SREG = SREG | (1 << 3); // Overflow in addition
+        else if (operation == '-' && sign1 != sign2 && signr == sign2)
+            SREG = SREG | (1 << 3); // Overflow in subtraction
+    }
+
+    // ----- Sign Flag (S, bit 1) = N XOR V -----
     int N = (SREG >> 2) & 1;
     int V = (SREG >> 3) & 1;
-    if ((N ^ V) == 1)
-        SREG = SREG | (1 << 1); // Set bit 1 to 1
+    int S = N ^ V;
+
+    SREG = SREG | (S << 1); // Set Sign Flag
 }
+
 
 
 
@@ -82,7 +86,7 @@ void instruction_execute(int opcode, int r1, int r2, int immediate) {
             int N = (SREG >> 2) & 1;
             SREG = SREG | (N << 1);  // Set S = N
             break;
-        case 3: // MOV Immediate
+        case 3: // MOV Immediate (MOVI)
             reg[r1] = immediate;
             break;
         case 4: // BEQZ
@@ -93,18 +97,22 @@ void instruction_execute(int opcode, int r1, int r2, int immediate) {
             break;
         case 5: // ANDI
             reg[r1] = reg[r1] & immediate;
+            update_flags(reg[r1],0,0,' ');
             break;
-        case 6: // XOR
+        case 6: // EOR
             reg[r1] = reg[r1] ^ reg[r2];
+            update_flags(reg[r1],0,0,' ');
             break;
-        case 7: // JUMP (concatenate R1 and R2)
+        case 7: // JUMP (concatenate R1 and R2) (BR)
             pc = (reg[r1] << 6) | reg[r2];
             return; // Skip increment
-        case 8: // LS
+        case 8: // SAL
             reg[r1] = reg[r1] << immediate;
+            update_flags(reg[r1],0,0,' ');
             break;
-        case 9: // RS
+        case 9: // SAR
             reg[r1] = reg[r1] >> immediate;
+            
             break;
         case 10: // LDR
             reg[r1] = data_memory[immediate];
