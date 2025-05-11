@@ -62,12 +62,25 @@ void instruction_execute(int opcode, int r1, int r2, int immediate) {
     switch (opcode) {
         case 0: // ADD
             reg[r1] = reg[r1] + reg[r2];
+            update_flags(reg[r1], reg[r1]-reg[r2], reg[r2], '+');
             break;
         case 1: // SUB
             reg[r1] = reg[r1] - reg[r2];
+            update_flags(reg[r1], reg[r1]+reg[r2], reg[r2], '-');
             break;
         case 2: // MUL
             reg[r1] = reg[r1] * reg[r2];
+
+            // Manually update relevant flags (Z, N, S)
+            SREG = SREG & 0b11100000; // Clear bits 0–4
+            if (reg[r1] == 0)
+                SREG = SREG | (1 << 0); // Zero flag
+
+            if (reg[r1] < 0)
+                SREG = SREG | (1 << 2); // Negative flag
+            // Sign flag: S = N XOR V, but since V = 0, S = N
+            int N = (SREG >> 2) & 1;
+            SREG = SREG | (N << 1);  // Set S = N
             break;
         case 3: // MOV Immediate
             reg[r1] = immediate;
